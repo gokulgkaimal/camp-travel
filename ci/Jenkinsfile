@@ -21,21 +21,41 @@ pipeline {
       }
     }
 
-    stage('SonarQube') {
-  when { expression { return fileExists('sonar-project.properties') } }
+    stage('Preflight: show workspace') {
   steps {
-    withSonarQubeEnv('sonarqube') { // sets SONAR_HOST_URL and SONAR_AUTH_TOKEN
+    sh '''
+      set -eux
+      pwd
+      ls -alh
+      echo "----- sonar-project.properties (if present) -----"
+      [ -f sonar-project.properties ] && sed -n '1,200p' sonar-project.properties || echo "NO sonar-project.properties at repo root"
+    '''
+  }
+}
+
+stage('SonarQube') {
+  steps {
+    withSonarQubeEnv('sonarqube') {
       sh '''
-        set -e
+        set -eux
         docker run --rm --network host \
           -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
           -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
           -v "$WORKSPACE:/usr/src" \
-          sonarsource/sonar-scanner-cli:5
+          sonarsource/sonar-scanner-cli:5 \
+          -Dproject.settings=sonar-project.properties \
+          -Dsonar.projectKey=camp-travel \
+          -Dsonar.projectName=camp-travel \
+          -Dsonar.sources=backend,frontend \
+          -Dsonar.sourceEncoding=UTF-8 \
+          -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/** \
+          -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
+          -Dsonar.python.coverage.reportPaths=backend/coverage.xml
       '''
     }
   }
 }
+
 
 }
 
