@@ -20,12 +20,14 @@ pipeline {
         '''
       }
     }
-
-    stage('Preflight: show workspace') {
+stage('Preflight: show workspace') {
   steps {
     sh '''
       set -eux
-      pwd
+      echo "PWD: $(pwd)"
+      echo "GIT HEAD:"
+      git log -1 --oneline || true
+      echo "Workspace listing:"
       ls -alh
       echo "----- sonar-project.properties (if present) -----"
       [ -f sonar-project.properties ] && sed -n '1,200p' sonar-project.properties || echo "NO sonar-project.properties at repo root"
@@ -55,9 +57,7 @@ stage('SonarQube') {
     }
   }
 }
-
-
-}
+ }
 
 
     stage('Trivy image scan') {
