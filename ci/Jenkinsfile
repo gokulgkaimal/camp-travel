@@ -1,6 +1,7 @@
 pipeline {
   agent any
   options { timestamps() }
+
   environment {
     AWS_REGION   = 'ap-south-1'
     ACCOUNT_ID   = '218435950846'
@@ -9,62 +10,63 @@ pipeline {
   }
 
   stages {
-    stage('Checkout') { steps { checkout scm } }
+    stage('Checkout') {
+      steps { checkout scm }
+    }
 
     stage('Build & Test') {
       steps {
         sh '''
+          set -eux
           docker build -t backend:local  -f backend/Dockerfile  backend
           docker build -t frontend:local -f frontend/Dockerfile frontend
           # optional: docker run --rm backend:local python -m pytest || true
         '''
       }
     }
-stage('Preflight: show workspace') {
-  steps {
-    sh '''
-      set -eux
-      echo "PWD: $(pwd)"
-      echo "GIT HEAD:"
-      git log -1 --oneline || true
-      echo "Workspace listing:"
-      ls -alh
-      echo "----- sonar-project.properties (if present) -----"
-      [ -f sonar-project.properties ] && sed -n '1,200p' sonar-project.properties || echo "NO sonar-project.properties at repo root"
-    '''
-  }
-}
 
-stage('SonarQube') {
-  steps {
-    withSonarQubeEnv('sonarqube') {
-      sh '''
-        set -eux
-        docker run --rm --network host \
-          -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-          -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
-          -v "$WORKSPACE:/usr/src" \
-          sonarsource/sonar-scanner-cli:5 \
-          -Dproject.settings=sonar-project.properties \
-          -Dsonar.projectKey=camp-travel \
-          -Dsonar.projectName=camp-travel \
-          -Dsonar.sources=backend,frontend \
-          -Dsonar.sourceEncoding=UTF-8 \
-          -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/** \
-          -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
-          -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-      '''
+    stage('Preflight: show workspace') {
+      steps {
+        sh '''
+          set -eux
+          echo "PWD: $(pwd)"
+          echo "GIT HEAD:"; git log -1 --oneline || true
+          echo "Workspace listing:"; ls -alh
+          echo "----- sonar-project.properties (root) -----"
+          [ -f sonar-project.properties ] && sed -n '1,120p' sonar-project.properties || echo "NO sonar-project.properties at repo root"
+          echo "----- k8s/sonar-project.properties -----"
+          [ -f k8s/sonar-project.properties ] && sed -n '1,120p' k8s/sonar-project.properties || echo "NO k8s/sonar-project.properties"
+        '''
+      }
     }
-  }
-}
- }
 
+    stage('SonarQube') {
+      steps {
+        withSonarQubeEnv('sonarqube') {
+          sh '''
+            set -eux
+            SETTINGS_FILE="sonar-project.properties"
+            [ -f "k8s/sonar-project.properties" ] && SETTINGS_FILE="k8s/sonar-project.properties"
+
+            docker run --rm \
+              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+              -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
+              -v "$WORKSPACE:/usr/src" \
+              sonarsource/sonar-scanner-cli:5 \
+                -Dproject.settings="$SETTINGS_FILE"
+                # If you keep all keys in the file above, no extra -D flags are needed here.
+          '''
+        }
+      }
+    }
 
     stage('Trivy image scan') {
       steps {
         sh '''
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress backend:local  || true
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress frontend:local || true
+          set +e
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress backend:local
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress frontend:local
+          true
         '''
       }
     }
@@ -72,9 +74,12 @@ stage('SonarQube') {
     stage('Login, tag & push to ECR') {
       steps {
         sh '''
+          set -eux
           aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
           COMMIT=$(git rev-parse --short HEAD || echo manual)
-          echo $COMMIT > COMMIT.sha
+          echo "$COMMIT" > COMMIT.sha
+          echo "COMMIT=$COMMIT" > env.out
 
           docker tag backend:local  $ECR_BACKEND:latest
           docker tag backend:local  $ECR_BACKEND:$COMMIT
@@ -89,21 +94,25 @@ stage('SonarQube') {
       }
     }
 
-    stage('Deploy to EKS (no DescribeCluster)') {
-  steps {
-    withCredentials([
-      string(credentialsId: 'k8s-token',      variable: 'K8S_TOKEN'),
-      string(credentialsId: 'k8s-api-server', variable: 'K8S_SERVER'),
-      file  (credentialsId: 'k8s-ca-crt',     variable: 'K8S_CA')
-    ]) {
-      sh '''
-        set -e
-        cat > kubeconfig <<EOF
+    stage('Deploy to EKS (token-based kubeconfig)') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'k8s-token',      variable: 'K8S_TOKEN'),
+          string(credentialsId: 'k8s-api-server', variable: 'K8S_SERVER'),
+          file  (credentialsId: 'k8s-ca-crt',     variable: 'K8S_CA')
+        ]) {
+          sh '''
+            set -eux
+            [ -f env.out ] && . ./env.out || true
+
+            CERT_B64=$(base64 "$K8S_CA" | tr -d '\\n')
+
+            cat > kubeconfig <<EOF
 apiVersion: v1
 kind: Config
 clusters:
 - cluster:
-    certificate-authority-data: $(base64 -w0 "$K8S_CA")
+    certificate-authority-data: ${CERT_B64}
     server: ${K8S_SERVER}
   name: camp-travel
 contexts:
@@ -117,23 +126,21 @@ users:
   user:
     token: ${K8S_TOKEN}
 EOF
-        export KUBECONFIG=$PWD/kubeconfig
 
-        # apply manifests and bump images
-        kubectl -n camp-travel apply -f k8s/backend-deployment.yaml
-        kubectl -n camp-travel apply -f k8s/frontend-deployment.yaml
+            export KUBECONFIG=$PWD/kubeconfig
 
-        # (optional) force image to the just-pushed tag
-        kubectl -n camp-travel set image deploy/backend  backend=${BACKEND_IMAGE}:${GIT_COMMIT}
-        kubectl -n camp-travel set image deploy/frontend frontend=${FRONTEND_IMAGE}:${GIT_COMMIT}
+            kubectl -n camp-travel apply -f k8s/backend-deployment.yaml
+            kubectl -n camp-travel apply -f k8s/frontend-deployment.yaml
 
-        kubectl -n camp-travel rollout status deploy/backend
-        kubectl -n camp-travel rollout status deploy/frontend
-      '''
+            kubectl -n camp-travel set image deploy/backend  backend=${ECR_BACKEND}:${COMMIT}
+            kubectl -n camp-travel set image deploy/frontend frontend=${ECR_FRONTEND}:${COMMIT}
+
+            kubectl -n camp-travel rollout status deploy/backend
+            kubectl -n camp-travel rollout status deploy/frontend
+          '''
+        }
+      }
     }
-  }
-}
-
 
     stage('Smoke test (Ingress)') {
       steps {
@@ -143,10 +150,12 @@ EOF
           file  (credentialsId: 'k8s-ca-crt',      variable: 'CA_FILE')
         ]) {
           sh '''
+            set -eux
             HOST=$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
               --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE" \
               -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
+            echo "Ingress hostname: $HOST"
             curl -sfI "http://$HOST/"
             curl -sfI "http://$HOST/api/health"
           '''
@@ -155,5 +164,9 @@ EOF
     }
   }
 
-  post { always { archiveArtifacts artifacts: 'COMMIT.sha', onlyIfSuccessful: false } }
-
+  post {
+    always {
+      archiveArtifacts artifacts: 'COMMIT.sha', onlyIfSuccessful: false
+    }
+  }
+}
