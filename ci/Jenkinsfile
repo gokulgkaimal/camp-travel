@@ -69,31 +69,50 @@ pipeline {
     }
 
     stage('Deploy to EKS (no DescribeCluster)') {
-      steps {
-        withCredentials([
-          string(credentialsId: 'k8s-token',       variable: 'K8S_TOKEN'),
-          string(credentialsId: 'k8s-api-server',  variable: 'API_SERVER'),
-          file  (credentialsId: 'k8s-ca-crt',      variable: 'CA_FILE')
-        ]) {
-          sh '''
-            COMMIT=$(cat COMMIT.sha)
+  steps {
+    withCredentials([
+      string(credentialsId: 'k8s-token',      variable: 'K8S_TOKEN'),
+      string(credentialsId: 'k8s-api-server', variable: 'K8S_SERVER'),
+      file  (credentialsId: 'k8s-ca-crt',     variable: 'K8S_CA')
+    ]) {
+      sh '''
+        set -e
+        cat > kubeconfig <<EOF
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    certificate-authority-data: $(base64 -w0 "$K8S_CA")
+    server: ${K8S_SERVER}
+  name: camp-travel
+contexts:
+- context:
+    cluster: camp-travel
+    user: jenkins
+  name: camp-travel
+current-context: camp-travel
+users:
+- name: jenkins
+  user:
+    token: ${K8S_TOKEN}
+EOF
+        export KUBECONFIG=$PWD/kubeconfig
 
-            kubectl apply -f k8s/ \
-              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+        # apply manifests and bump images
+        kubectl -n camp-travel apply -f k8s/backend-deployment.yaml
+        kubectl -n camp-travel apply -f k8s/frontend-deployment.yaml
 
-            kubectl -n camp-travel set image deploy/backend  backend=$ECR_BACKEND:$COMMIT \
-              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
-            kubectl -n camp-travel set image deploy/frontend frontend=$ECR_FRONTEND:$COMMIT \
-              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+        # (optional) force image to the just-pushed tag
+        kubectl -n camp-travel set image deploy/backend  backend=${BACKEND_IMAGE}:${GIT_COMMIT}
+        kubectl -n camp-travel set image deploy/frontend frontend=${FRONTEND_IMAGE}:${GIT_COMMIT}
 
-            kubectl -n camp-travel rollout status deploy/backend  \
-              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
-            kubectl -n camp-travel rollout status deploy/frontend \
-              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
-          '''
-        }
-      }
+        kubectl -n camp-travel rollout status deploy/backend
+        kubectl -n camp-travel rollout status deploy/frontend
+      '''
     }
+  }
+}
+
 
     stage('Smoke test (Ingress)') {
       steps {
