@@ -1,0 +1,119 @@
+pipeline {
+  agent any
+  options { timestamps() }
+  environment {
+    AWS_REGION   = 'ap-south-1'
+    ACCOUNT_ID   = '218435950846'
+    ECR_BACKEND  = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-backend"
+    ECR_FRONTEND = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-frontend"
+  }
+
+  stages {
+    stage('Checkout') { steps { checkout scm } }
+
+    stage('Build & Test') {
+      steps {
+        sh '''
+          docker build -t backend:local  -f backend/Dockerfile  backend
+          docker build -t frontend:local -f frontend/Dockerfile frontend
+          # optional: docker run --rm backend:local python -m pytest || true
+        '''
+      }
+    }
+
+    stage('SonarQube') {
+  when { expression { return fileExists('sonar-project.properties') } }
+  steps {
+    withSonarQubeEnv('sonarqube') {
+      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        sh '''
+          docker run --rm \
+            -e SONAR_HOST_URL=$SONAR_HOST_URL \
+            -e SONAR_LOGIN=$SONAR_TOKEN \
+            -v "$PWD":/usr/src \
+            sonarsource/sonar-scanner-cli:5
+        '''
+      }
+    }
+  }
+}
+
+
+    stage('Trivy image scan') {
+      steps {
+        sh '''
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress backend:local  || true
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --no-progress frontend:local || true
+        '''
+      }
+    }
+
+    stage('Login, tag & push to ECR') {
+      steps {
+        sh '''
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+          COMMIT=$(git rev-parse --short HEAD || echo manual)
+          echo $COMMIT > COMMIT.sha
+
+          docker tag backend:local  $ECR_BACKEND:latest
+          docker tag backend:local  $ECR_BACKEND:$COMMIT
+          docker tag frontend:local $ECR_FRONTEND:latest
+          docker tag frontend:local $ECR_FRONTEND:$COMMIT
+
+          docker push $ECR_BACKEND:$COMMIT
+          docker push $ECR_BACKEND:latest
+          docker push $ECR_FRONTEND:$COMMIT
+          docker push $ECR_FRONTEND:latest
+        '''
+      }
+    }
+
+    stage('Deploy to EKS (no DescribeCluster)') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'k8s-token',       variable: 'K8S_TOKEN'),
+          string(credentialsId: 'k8s-api-server',  variable: 'API_SERVER'),
+          file  (credentialsId: 'k8s-ca-crt',      variable: 'CA_FILE')
+        ]) {
+          sh '''
+            COMMIT=$(cat COMMIT.sha)
+
+            kubectl apply -f k8s/ \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+
+            kubectl -n camp-travel set image deploy/backend  backend=$ECR_BACKEND:$COMMIT \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+            kubectl -n camp-travel set image deploy/frontend frontend=$ECR_FRONTEND:$COMMIT \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+
+            kubectl -n camp-travel rollout status deploy/backend  \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+            kubectl -n camp-travel rollout status deploy/frontend \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE"
+          '''
+        }
+      }
+    }
+
+    stage('Smoke test (Ingress)') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'k8s-token',       variable: 'K8S_TOKEN'),
+          string(credentialsId: 'k8s-api-server',  variable: 'API_SERVER'),
+          file  (credentialsId: 'k8s-ca-crt',      variable: 'CA_FILE')
+        ]) {
+          sh '''
+            HOST=$(kubectl -n ingress-nginx get svc ingress-nginx-controller \
+              --server="$API_SERVER" --token="$K8S_TOKEN" --certificate-authority="$CA_FILE" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+            curl -sfI "http://$HOST/"
+            curl -sfI "http://$HOST/api/health"
+          '''
+        }
+      }
+    }
+  }
+
+  post { always { archiveArtifacts artifacts: 'COMMIT.sha', onlyIfSuccessful: false } }
+}
