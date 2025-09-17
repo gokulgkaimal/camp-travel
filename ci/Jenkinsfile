@@ -156,4 +156,4 @@ EOF
   }
 
   post { always { archiveArtifacts artifacts: 'COMMIT.sha', onlyIfSuccessful: false } }
-}
+
