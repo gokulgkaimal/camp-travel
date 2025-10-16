@@ -12,7 +12,7 @@ spec:
       serviceAccountName: jenkins-deployer
       containers:
       - name: frontend
-        image: 218435950846.dkr.ecr.ap-south-1.amazonaws.com/camp-travel-frontend:latest
+        image: 338320348680.dkr.ecr.ap-south-1.amazonaws.com/camp-travel-frontend:latest
         ports: [{ containerPort: 80 }]
 ---
 apiVersion: v1

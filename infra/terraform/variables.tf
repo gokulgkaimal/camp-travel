@@ -10,7 +10,7 @@ variable "region" {
 
 variable "aws_profile" {
   type    = string
-  default = "myprofile"
+  default = "ggkaimal"
 }
 
 # VPC & subnets (public only to avoid NAT)
@@ -32,12 +32,12 @@ variable "public_b_cidr" {
 # EKS
 variable "eks_version" {
   type    = string
-  default = "1.29"
+  default = "1.33"
 }
 
 variable "node_instance" {
   type    = string
-  default = "t3.medium"
+  default = "m7i-flex.large"
 }
 
 variable "desired_size" {
@@ -58,12 +58,12 @@ variable "max_size" {
 # Tools EC2
 variable "tools_instance_type" {
   type    = string
-  default = "t2.large"
+  default = "m7i-flex.large"
 }
 
 variable "key_name" {
   type    = string
-  default = "my-ec2-key" # replace with your actual Key Pair name
+  default = "camp-ec2-key" 
 }
 
 

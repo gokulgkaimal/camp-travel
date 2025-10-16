@@ -4,7 +4,7 @@ pipeline {
 
   environment {
     AWS_REGION   = 'ap-south-1'
-    ACCOUNT_ID   = '218435950846'
+    ACCOUNT_ID   = '338320348680'
     ECR_BACKEND  = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-backend"
     ECR_FRONTEND = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-frontend"
   }
