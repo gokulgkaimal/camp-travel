@@ -9,20 +9,33 @@ pipeline {
     ECR_FRONTEND = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-frontend"
   }
 
-  stages {
-    stage('Checkout') {
-      steps { checkout scm }
-    }
+  stage('Checkout') {
+  steps {
+    deleteDir()          // wipe workspace
+    checkout scm         // pull fresh
+  }
+}
+sh '''
+  set -eux
+  echo "HEAD: $(git rev-parse --short HEAD || true)"
+  test -f backend/requirements.txt
+  sed -n '1,20p' backend/Dockerfile
+  [ -f .dockerignore ] && { echo "--- .dockerignore ---"; sed -n '1,200p' .dockerignore; }
+  [ -f backend/.dockerignore ] && { echo "--- backend/.dockerignore ---"; sed -n '1,200p' backend/.dockerignore; }
+'''
 
-    stage('Build Images') {
-      steps {
-        sh '''
-          set -eux
-          docker build -t backend:local  -f backend/Dockerfile  .
-          docker build -t frontend:local -f frontend/Dockerfile .
-        '''
-      }
-    }
+stage('Build Images') {
+  steps {
+    sh '''
+      set -eux
+      docker build -t backend:local  -f backend/Dockerfile  backend
+      docker build -t frontend:local -f frontend/Dockerfile frontend
+    '''
+  }
+}
+
+
+
 
     stage('SonarQube Analysis') {
       steps {

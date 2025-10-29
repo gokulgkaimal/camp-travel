@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # copy app code
-COPY . .
+COPY backend/ .
 
 # expose flask port
 EXPOSE 5000
