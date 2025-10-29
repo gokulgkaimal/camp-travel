@@ -1,3 +1,6 @@
+############################
+# Locals / identity
+############################
 locals {
   tags = {
     Project = var.project_name
@@ -6,7 +9,12 @@ locals {
   }
 }
 
-# ---------- VPC (public only) ----------
+# Who am I? (used for ARNs)
+data "aws_caller_identity" "current" {}
+
+############################
+# VPC (public only)
+############################
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.1"
@@ -26,7 +34,9 @@ module "vpc" {
   tags = local.tags
 }
 
-# ---------- ECR repositories ----------
+############################
+# ECR repositories
+############################
 resource "aws_ecr_repository" "frontend" {
   name                 = "${var.project_name}-frontend"
   image_tag_mutability = "MUTABLE"
@@ -41,17 +51,23 @@ resource "aws_ecr_repository" "backend" {
   tags                 = local.tags
 }
 
-# ---------- EKS cluster ----------
+############################
+# EKS cluster
+############################
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.8"
 
-  cluster_name                   = "${var.project_name}-eks"
-  cluster_version                = var.eks_version
-  vpc_id                         = module.vpc.vpc_id
-  subnet_ids                     = module.vpc.public_subnets
+  cluster_name    = "${var.project_name}-eks"
+  cluster_version = var.eks_version
+
+  vpc_id     = module.vpc.vpc_id
+  subnet_ids = module.vpc.public_subnets
+
+  # API endpoint behavior (toggle via var.enable_private_api)
   cluster_endpoint_public_access  = true
-  cluster_endpoint_private_access = false
+  cluster_endpoint_private_access = var.enable_private_api
+
   eks_managed_node_groups = {
     default = {
       instance_types = [var.node_instance]
@@ -65,7 +81,9 @@ module "eks" {
   tags = local.tags
 }
 
-# ---------- EKS access for your IAM user ----------
+############################
+# EKS access for your IAM user
+############################
 resource "aws_eks_access_entry" "me" {
   cluster_name  = module.eks.cluster_name
   principal_arn = "arn:aws:iam::338320348680:user/ggkaimal"
@@ -77,11 +95,10 @@ resource "aws_eks_access_policy_association" "me_admin" {
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
   principal_arn = aws_eks_access_entry.me.principal_arn
 
-  access_scope {
-    type = "cluster"
-  }
+  access_scope { type = "cluster" }
 }
 
+############################
 # ---------- Security Group for Tools EC2 ----------
 resource "aws_security_group" "tools_sg" {
   name        = "${var.project_name}-tools-sg"
@@ -94,7 +111,7 @@ resource "aws_security_group" "tools_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # tighten to your IP later
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   # ---------- Jenkins ----------
@@ -160,7 +177,7 @@ resource "aws_security_group" "tools_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # ---------- Outbound Traffic ----------
+  # ---------- Outbound traffic ----------
   egress {
     from_port   = 0
     to_port     = 0
@@ -171,7 +188,21 @@ resource "aws_security_group" "tools_sg" {
   tags = local.tags
 }
 
-# ---------- IAM role for Tools EC2 (ECR access) ----------
+
+# If you ever enable the private API, allow tools EC2 -> EKS API on 443
+resource "aws_security_group_rule" "eks_private_api_from_tools" {
+  count                    = var.enable_private_api ? 1 : 0
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = module.eks.cluster_security_group_id
+  source_security_group_id = aws_security_group.tools_sg.id
+}
+
+############################
+# IAM role for Tools EC2
+############################
 data "aws_iam_policy_document" "tools_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -188,15 +219,30 @@ resource "aws_iam_role" "tools_role" {
   tags               = local.tags
 }
 
+# ECR access for the EC2 role
 resource "aws_iam_role_policy_attachment" "tools_ecr" {
   role       = aws_iam_role.tools_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser"
 }
 
-# --- ADDED: allow EC2 role to call EKS APIs (DescribeCluster etc.) ---
+# EKS read (DescribeCluster etc.)
 resource "aws_iam_role_policy_attachment" "tools_role_eks_cluster_policy" {
   role       = aws_iam_role.tools_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+# Belt & suspenders: explicit allow for DescribeCluster on THIS cluster
+resource "aws_iam_role_policy" "tools_role_eks_describe_inline" {
+  name = "eks-describe-explicit-allow"
+  role = aws_iam_role.tools_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect   = "Allow",
+      Action   = ["eks:DescribeCluster"],
+      Resource = "arn:aws:eks:${var.region}:${data.aws_caller_identity.current.account_id}:cluster/${module.eks.cluster_name}"
+    }]
+  })
 }
 
 resource "aws_iam_instance_profile" "tools_profile" {
@@ -204,7 +250,9 @@ resource "aws_iam_instance_profile" "tools_profile" {
   role = aws_iam_role.tools_role.name
 }
 
-# ---------- Ubuntu 22.04 AMI ----------
+############################
+# Tools EC2 instance
+############################
 data "aws_ami" "ubuntu_2204" {
   owners      = ["099720109477"] # Canonical
   most_recent = true
@@ -215,11 +263,10 @@ data "aws_ami" "ubuntu_2204" {
   }
 }
 
-# ---------- Tools EC2 instance ----------
 resource "aws_instance" "tools" {
   ami                         = data.aws_ami.ubuntu_2204.id
-  instance_type               = var.tools_instance_type      # e.g., m7i-flex.large / t3.medium
-  key_name                    = var.key_name                 # must exist
+  instance_type               = var.tools_instance_type
+  key_name                    = var.key_name
   subnet_id                   = module.vpc.public_subnets[0]
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.tools_sg.id]
@@ -258,7 +305,9 @@ resource "aws_instance" "tools" {
   tags = merge(local.tags, { Name = "${var.project_name}-tools" })
 }
 
-# --- ADDED: grant the tools EC2 role admin access inside the EKS cluster ---
+############################
+# EKS access for the Tools EC2 role
+############################
 resource "aws_eks_access_entry" "tools_role" {
   cluster_name  = module.eks.cluster_name
   principal_arn = aws_iam_role.tools_role.arn
@@ -274,3 +323,5 @@ resource "aws_eks_access_policy_association" "tools_role_admin" {
   access_scope { type = "cluster" }
   depends_on = [aws_eks_access_entry.tools_role]
 }
+
+

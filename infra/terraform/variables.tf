@@ -13,6 +13,13 @@ variable "aws_profile" {
   default = "ggkaimal"
 }
 
+# Toggle private EKS API if you want it later
+variable "enable_private_api" {
+  description = "Enable EKS private API endpoint"
+  type        = bool
+  default     = false
+}
+
 # VPC & subnets (public only to avoid NAT)
 variable "vpc_cidr" {
   type    = string
@@ -63,7 +70,5 @@ variable "tools_instance_type" {
 
 variable "key_name" {
   type    = string
-  default = "camp-ec2-key" 
+  default = "my-ec2-key"
 }
-
-
