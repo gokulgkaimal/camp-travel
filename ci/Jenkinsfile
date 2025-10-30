@@ -43,7 +43,7 @@ pipeline {
     withSonarQubeEnv('SonarQube') {
   sh '''
     set -eux
-    SETTINGS_FILE="sonar-project.properties"
+    SETTINGS_FILE="sonar-project"
     [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE"; exit 1; }
 
     # Normalize CRLF to LF reliably (avoid sed portability issues)
