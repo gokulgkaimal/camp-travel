@@ -9,44 +9,44 @@ pipeline {
     ECR_FRONTEND = "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/camp-travel-frontend"
   }
 
-  stage('Checkout') {
-  steps {
-    deleteDir()          // wipe workspace
-    checkout scm         // pull fresh
-  }
-}
-sh '''
-  set -eux
-  echo "HEAD: $(git rev-parse --short HEAD || true)"
-  test -f backend/requirements.txt
-  sed -n '1,20p' backend/Dockerfile
-  [ -f .dockerignore ] && { echo "--- .dockerignore ---"; sed -n '1,200p' .dockerignore; }
-  [ -f backend/.dockerignore ] && { echo "--- backend/.dockerignore ---"; sed -n '1,200p' backend/.dockerignore; }
-'''
+  stages {
+    stage('Checkout') {
+      steps {
+        deleteDir()
+        checkout scm
+      }
+    }
 
-stage('Build Images') {
-  steps {
-    sh '''
-      set -eux
-      docker build -t backend:local  -f backend/Dockerfile  backend
-      docker build -t frontend:local -f frontend/Dockerfile frontend
-    '''
-  }
-}
+    stage('Preflight') {
+      steps {
+        sh '''
+          set -eux
+          echo "HEAD: $(git rev-parse --short HEAD || true)"
+          test -f backend/requirements.txt
+          sed -n '1,20p' backend/Dockerfile
+          [ -f .dockerignore ] && { echo "--- .dockerignore ---"; sed -n '1,200p' .dockerignore; }
+          [ -f backend/.dockerignore ] && { echo "--- backend/.dockerignore ---"; sed -n '1,200p' backend/.dockerignore; }
+        '''
+      }
+    }
 
-
-
+    stage('Build Images') {
+      steps {
+        sh '''
+          set -eux
+          docker build -t backend:local  -f backend/Dockerfile  backend
+          docker build -t frontend:local -f frontend/Dockerfile frontend
+        '''
+      }
+    }
 
     stage('SonarQube Analysis') {
       steps {
-        withSonarQubeEnv('SonarQube') { // <-- must match Jenkins > System > SonarQube servers "Name"
+        withSonarQubeEnv('SonarQube') {
           sh '''
             set -eux
-
             SETTINGS_FILE="sonar-project.properties"
             [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE at repo root"; exit 1; }
-
-            # Show settings for debug
             sed -n '1,200p' "$SETTINGS_FILE" || true
 
             docker run --rm \
@@ -99,20 +99,15 @@ stage('Build Images') {
       steps {
         sh '''
           set -eux
-          # Build kubeconfig via IAM (requires eks:DescribeCluster on EC2 role)
           aws eks update-kubeconfig --region $AWS_REGION --name camp-travel-eks
 
-          # Source COMMIT tag
           [ -f env.out ] && . ./env.out || true
 
-          # Ensure namespace exists
           kubectl get ns camp-travel || kubectl create ns camp-travel
 
-          # First-time apply or idempotent update
           kubectl -n camp-travel apply -f k8s/backend-deployment.yaml
           kubectl -n camp-travel apply -f k8s/frontend-deployment.yaml
 
-          # Update images to the new tag
           kubectl -n camp-travel set image deploy/backend  backend=${ECR_BACKEND}:${COMMIT}
           kubectl -n camp-travel set image deploy/frontend frontend=${ECR_FRONTEND}:${COMMIT}
 
@@ -128,8 +123,7 @@ stage('Build Images') {
           set -eux
           LB=$(kubectl -n camp-travel get svc frontend -o jsonpath='{.status.loadBalancer.ingress[0].hostname}{.status.loadBalancer.ingress[0].ip}')
           echo "Frontend LB: $LB"
-          # Basic checks
-          curl -sfI --max-time 10 "http://$LB/"
+          curl -sfI --max-time 10 "http://$LB/" || exit 1
           curl -sfI --max-time 10 "http://$LB/api/health" || true
         '''
       }
