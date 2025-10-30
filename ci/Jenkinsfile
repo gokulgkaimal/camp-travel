@@ -40,29 +40,33 @@ pipeline {
       }
     }
 
-    withSonarQubeEnv('SonarQube') {
-  sh '''
-    set -eux
-    SETTINGS_FILE="sonar-project"
-    [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE"; exit 1; }
+    stage('SonarQube Analysis') {
+      steps {
+        withSonarQubeEnv('SonarQube') {
+          sh '''
+            set -eux
+            SETTINGS_FILE="sonar-project"   # use your current filename
 
-    # Normalize CRLF to LF reliably (avoid sed portability issues)
-    awk '{ sub(/\\r$/, ""); print }' "$SETTINGS_FILE" > .sonar.tmp && mv .sonar.tmp "$SETTINGS_FILE"
+            [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE"; exit 1; }
 
-    # Prove file is mounted and readable inside container
-    docker run --rm -v "$WORKSPACE:/usr/src" -w /usr/src alpine \
-      sh -c "ls -l $SETTINGS_FILE && head -n3 $SETTINGS_FILE | od -An -t x1"
+            # Normalize CRLF -> LF and strip BOM (Windows safety)
+            perl -i -pe 'BEGIN{binmode(STDIN);binmode(STDOUT)} s/^\\x{FEFF}//; s/\\r//g;' "$SETTINGS_FILE"
 
-    # Run scanner, point to absolute path inside the container
-    docker run --rm \
-      -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-      -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
-      -v "$WORKSPACE:/usr/src" -w /usr/src \
-      sonarsource/sonar-scanner-cli:5 \
-        -Dproject.settings=/usr/src/sonar-project.properties
-  '''
-}
+            # Prove file is visible in the container
+            docker run --rm -v "$WORKSPACE:/usr/src" -w /usr/src alpine \
+              sh -c "ls -l $SETTINGS_FILE && head -n1 $SETTINGS_FILE | od -An -t x1"
 
+            # Run scanner with absolute path inside container
+            docker run --rm \
+              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+              -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
+              -v "$WORKSPACE:/usr/src" -w /usr/src \
+              sonarsource/sonar-scanner-cli:5 \
+                -Dproject.settings=/usr/src/sonar-project
+          '''
+        }
+      }
+    }
 
     stage('Trivy image scan (soft-fail)') {
       steps {
