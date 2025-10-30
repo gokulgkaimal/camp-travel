@@ -24,4 +24,3 @@ backend/coverage.xml
 
 # Sonar
 **/.scannerwork/
-backend/instance/app.db
