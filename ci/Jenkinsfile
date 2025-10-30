@@ -41,25 +41,33 @@ pipeline {
     }
 
     stage('SonarQube Analysis') {
-      steps {
-        withSonarQubeEnv('SonarQube') {
-          sh '''
-            set -eux
-            SETTINGS_FILE="sonar-project.properties"
-            [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE at repo root"; exit 1; }
-            sed -n '1,200p' "$SETTINGS_FILE" || true
+  steps {
+    withSonarQubeEnv('SonarQube') {
+      sh '''
+        set -eux
+        SETTINGS_FILE="sonar-project.properties"
+        [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE at repo root"; exit 1; }
 
-            docker run --rm \
-              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-              -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
-              -v "$WORKSPACE:/usr/src" \
-              -w /usr/src \
-              sonarsource/sonar-scanner-cli:5 \
-                -Dproject.settings="$SETTINGS_FILE"
-          '''
-        }
-      }
+        # Normalize line endings (Windows -> Unix) just in case
+        sed -i 's/\r$//' "$SETTINGS_FILE"
+
+        # Show file + confirm path
+        pwd
+        ls -la "$SETTINGS_FILE"
+
+        # Run scanner with ABSOLUTE path to the settings file
+        docker run --rm \
+          -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+          -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
+          -v "$WORKSPACE:/usr/src" \
+          -w /usr/src \
+          sonarsource/sonar-scanner-cli:5 \
+            -Dproject.settings=/usr/src/sonar-project.properties
+      '''
     }
+  }
+}
+
 
     stage('Trivy image scan (soft-fail)') {
       steps {
