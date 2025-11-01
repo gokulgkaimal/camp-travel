@@ -40,22 +40,31 @@ pipeline {
 
     stage('SonarQube Analysis') {
       steps {
-        withSonarQubeEnv('SonarQube') {
-          sh '''
-            set -eux
-            SETTINGS_FILE="sonar-project.properties"
-            [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE at repo root"; exit 1; }
-            sed -n '1,200p' "$SETTINGS_FILE" || true
+       withSonarQubeEnv('SonarQube') {
+  sh '''
+    set -eux
 
-            docker run --rm \
-              -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-              -e SONAR_LOGIN="${SONAR_AUTH_TOKEN}" \
-              -v "$WORKSPACE:/usr/src" \
-              -w /usr/src \
-              sonarsource/sonar-scanner-cli:5 \
-              -Dproject.settings="$SETTINGS_FILE"
-          '''
-        }
+    SETTINGS_FILE="sonar-project.properties"
+    [ -f "$SETTINGS_FILE" ] || { echo "Missing $SETTINGS_FILE"; exit 1; }
+
+    # Normalize: remove BOM and CRLF so the scanner can read the first key
+    perl -i -pe 'BEGIN{binmode(STDIN);binmode(STDOUT)} s/^\\x{FEFF}//; s/\\r//g;' "$SETTINGS_FILE"
+
+    # Prove path & content inside the container
+    docker run --rm -v "$WORKSPACE:/usr/src" -w /usr/src alpine \
+      sh -c "pwd; ls -l $SETTINGS_FILE; head -n3 $SETTINGS_FILE | od -An -t x1"
+
+    # Use ABSOLUTE path and pass token explicitly (both ways for safety)
+    docker run --rm \
+      -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
+      -e SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
+      -v "$WORKSPACE:/usr/src" -w /usr/src \
+      sonarsource/sonar-scanner-cli:5 \
+        -Dproject.settings=/usr/src/sonar-project.properties \
+        -Dsonar.login="${SONAR_AUTH_TOKEN}"
+  '''
+}
+
       }
     }
 
