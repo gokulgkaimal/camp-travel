@@ -39,36 +39,35 @@ pipeline {
     }
 
    stage('SonarQube Analysis') {
-    steps {
-        withSonarQubeEnv('SonarQube') {
-            sh '''
-                set -eux
-                echo "=== DEBUG: Verifying workspace content before scan ==="
-                pwd
-                ls -la
-                echo "=== END DEBUG ==="
+  steps {
+    withSonarQubeEnv('SonarQube') {
+      sh '''
+        set -eux
 
-                SETTINGS_FILE=sonar-project.properties
-                if [ -f "$SETTINGS_FILE" ]; then
-                    sed -n 1,200p "$SETTINGS_FILE"
-                fi
+        echo "=== DEBUG workspace ==="
+        echo "WORKSPACE=$WORKSPACE"
+        ls -la "$WORKSPACE"
+        find "$WORKSPACE" -maxdepth 2 -type d -print
 
-                docker run --rm \
-                  -e SONAR_HOST_URL=$SONAR_HOST_URL \
-                  -e SONAR_TOKEN=$SONAR_TOKEN \
-                  -v "$(pwd):/usr/src" -w /usr/src \
-                  sonarsource/sonar-scanner-cli:5 \
-                  -Dsonar.projectKey=camp-travel \
-                  -Dsonar.projectName=camp-travel \
-                  -Dsonar.sourceEncoding=UTF-8 \
-                  -Dsonar.sources=. \
-                  -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/** \
-                  -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
-                  -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-            '''
-        }
+        docker run --rm \
+          -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+          -e SONAR_TOKEN="$SONAR_TOKEN" \
+          -v "$WORKSPACE:/usr/src" \
+          -w /usr/src \
+          sonarsource/sonar-scanner-cli:5 \
+            -Dsonar.projectKey=camp-travel \
+            -Dsonar.projectName=camp-travel \
+            -Dsonar.sourceEncoding=UTF-8 \
+            -Dsonar.sources=backend,frontend/src \
+            -Dsonar.inclusions=backend/**/*.py,frontend/src/**/*.{js,jsx,ts,tsx} \
+            -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/** \
+            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
+            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+      '''
     }
+  }
 }
+
 
 
 
