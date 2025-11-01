@@ -38,21 +38,32 @@ pipeline {
       }
     }
 
-    stage('SonarQube Analysis') {
+   stage('SonarQube Analysis') {
   steps {
     withSonarQubeEnv('SonarQube') {
       sh '''
         set -eux
+
+        # Show what Jenkins sees on the host
+        echo "PWD     = $(pwd)"
+        echo "WORKSPACE = ${WORKSPACE:-"(unset)"}"
+        ls -la
+
+        # Show what the container sees after the mount
+        docker run --rm -v "$(pwd):/usr/src" -w /usr/src alpine \
+          sh -c 'pwd; ls -la; echo "--- dirs ---"; find . -maxdepth 2 -type d | sort'
+
+        # Run scanner; point sources at repo root to avoid path brittleness
         docker run --rm \
           -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
           -e SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
-          -v "$WORKSPACE:/usr/src" -w /usr/src \
+          -v "$(pwd):/usr/src" -w /usr/src \
           sonarsource/sonar-scanner-cli:5 \
             -Dsonar.projectKey=camp-travel \
             -Dsonar.projectName=camp-travel \
             -Dsonar.sourceEncoding=UTF-8 \
-            -Dsonar.sources=backend,frontend \
-            -Dsonar.exclusions="**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/**" \
+            -Dsonar.sources=. \
+            -Dsonar.exclusions="**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/**,**/.scannerwork/**" \
             -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
             -Dsonar.python.coverage.reportPaths=backend/coverage.xml
       '''
