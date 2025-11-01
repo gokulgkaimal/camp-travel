@@ -39,37 +39,37 @@ pipeline {
     }
 
    stage('SonarQube Analysis') {
-  steps {
-    withSonarQubeEnv('SonarQube') {
-      sh '''
-        set -eux
+    steps {
+        withSonarQubeEnv('SonarQube') {
+            sh '''
+                set -eux
+                echo "=== DEBUG: Verifying workspace content before scan ==="
+                pwd
+                ls -la
+                echo "=== END DEBUG ==="
 
-        # Show what Jenkins sees on the host
-        echo "PWD     = $(pwd)"
-        echo "WORKSPACE = ${WORKSPACE:-"(unset)"}"
-        ls -la
+                SETTINGS_FILE=sonar-project.properties
+                if [ -f "$SETTINGS_FILE" ]; then
+                    sed -n 1,200p "$SETTINGS_FILE"
+                fi
 
-        # Show what the container sees after the mount
-        docker run --rm -v "$(pwd):/usr/src" -w /usr/src alpine \
-          sh -c 'pwd; ls -la; echo "--- dirs ---"; find . -maxdepth 2 -type d | sort'
-
-        # Run scanner; point sources at repo root to avoid path brittleness
-        docker run --rm \
-          -e SONAR_HOST_URL="${SONAR_HOST_URL}" \
-          -e SONAR_TOKEN="${SONAR_AUTH_TOKEN}" \
-          -v "$(pwd):/usr/src" -w /usr/src \
-          sonarsource/sonar-scanner-cli:5 \
-            -Dsonar.projectKey=camp-travel \
-            -Dsonar.projectName=camp-travel \
-            -Dsonar.sourceEncoding=UTF-8 \
-            -Dsonar.sources=. \
-            -Dsonar.exclusions="**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/**,**/.scannerwork/**" \
-            -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
-            -Dsonar.python.coverage.reportPaths=backend/coverage.xml
-      '''
+                docker run --rm \
+                  -e SONAR_HOST_URL=$SONAR_HOST_URL \
+                  -e SONAR_TOKEN=$SONAR_TOKEN \
+                  -v "$(pwd):/usr/src" -w /usr/src \
+                  sonarsource/sonar-scanner-cli:5 \
+                  -Dsonar.projectKey=camp-travel \
+                  -Dsonar.projectName=camp-travel \
+                  -Dsonar.sourceEncoding=UTF-8 \
+                  -Dsonar.sources=. \
+                  -Dsonar.exclusions=**/node_modules/**,**/build/**,**/dist/**,**/.venv/**,**/__pycache__/** \
+                  -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info \
+                  -Dsonar.python.coverage.reportPaths=backend/coverage.xml
+            '''
+        }
     }
-  }
 }
+
 
 
     stage('Trivy image scan (soft-fail)') {
