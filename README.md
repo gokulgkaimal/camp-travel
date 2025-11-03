@@ -19,4 +19,5 @@ This project demonstrates **complete CI/CD automation** with **quality analysis 
 ## 🧱 Architecture  
 
 Developer → GitHub → Jenkins → SonarQube → Trivy → AWS ECR → EKS → Prometheus → Grafana
-↘︎ Terraform (Infrastructure as Code)
+   |
+Terraform (Infrastructure as Code)
