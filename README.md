@@ -21,3 +21,21 @@ This project demonstrates **complete CI/CD automation** with **quality analysis 
 Developer → GitHub → Jenkins → SonarQube → Trivy → AWS ECR → EKS → Prometheus → Grafana
    |
 Terraform (Infrastructure as Code)
+
+**Features**
+
+Modern React frontend and Flask REST API backend
+
+Containerized using Docker
+
+CI/CD Pipeline via Jenkins
+
+Static Code Analysis with SonarQube
+
+Vulnerability Scanning with Trivy
+
+Automated Deployment to AWS EKS
+
+Infrastructure as Code using Terraform
+
+Monitoring via Prometheus and Grafana
