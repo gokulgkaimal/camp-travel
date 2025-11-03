@@ -41,8 +41,8 @@ Infrastructure as Code using Terraform
 Monitoring via Prometheus and Grafana
 
 ## 🏕️ Camp-Travel Homepage
-![Camp Travel Homepage](./screenshots/camp-travel-homepage.png)
+![Camp Travel Homepage](./screenshots/camp-travel homepage.png)
 
 ## 🔐 Login Page
-![Camp Travel Login Page](./screenshots/camp-travel-login-page.png)
+![Camp Travel Login Page](./screenshots/camp-travel login-page.png)
 
