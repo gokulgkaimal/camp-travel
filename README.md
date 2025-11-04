@@ -158,7 +158,7 @@ Blackbox Exporter (7587)
 ### 🧠 Prometheus Main Dashboard
 ![Prometheus Main Dashboard](./screenshots/prom-main-dashboard.png)
 
-### 🕵️ Blackbox Targets in Grafana
+### 🕵️ Blackbox in Grafana
 ![Blackbox in Grafana](./screenshots/blackbox-in-grafana.png)
 
 ### ⚙️ Blackbox Exporter
