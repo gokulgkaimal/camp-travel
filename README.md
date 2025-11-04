@@ -46,3 +46,38 @@ Monitoring via Prometheus and Grafana
 ## 🔐 Login Page
 ![Camp Travel Login Page](./screenshots/camp-travel-login-page.png)
 
+
+☁️ **DevOps & Deployment*
+
+Tools & Services Used
+
+Docker
+
+Jenkins (CI/CD)
+
+Terraform (IaC)
+
+AWS EKS (Elastic Kubernetes Service)
+
+AWS ECR (Container Registry)
+
+SonarQube (Code Quality)
+
+Trivy (Image Scan)
+
+Prometheus + Grafana (Monitoring)
+
+**Infrastructure & Installation (AWS + K8s + DevOps Tools)**
+1️⃣ AWS Setup
+
+Created a custom VPC using Terraform with 2–3 public subnets across AZs.
+
+Provisioned:
+
+EKS Cluster with managed node group (m7i-flex.large Instance)
+
+ECR Repositories: camp-travel-frontend, camp-travel-backend
+
+EC2 Tools Instance (m7i-flex.large Instance) for Jenkins, SonarQube, Trivy, Prometheus, Grafana
+
+
