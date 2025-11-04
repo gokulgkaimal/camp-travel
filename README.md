@@ -139,6 +139,34 @@ Stage	Description
 ### 🚀 Jenkins Stages
 ![Jenkins Stages](./screenshots/jenkins-stages.png)
 
+**Monitoring Setup (Prometheus + Grafana)**
+
+Prometheus scrapes Jenkins /prometheus and Blackbox endpoints
+
+Grafana dashboards:
+
+Node Exporter (1860)
+
+Blackbox Exporter (7587)
+
+### 📊 Jenkins Metrics in Grafana
+![Jenkins Grafana Metrics](./screenshots/jenkins-grafana-metrics.png)
+
+### 📈 Prometheus Data Source (Grafana)
+![Prometheus in Grafana](./screenshots/prom-in-grafana.png)
+
+### 🧠 Prometheus Main Dashboard
+![Prometheus Main Dashboard](./screenshots/prom-main-dashboard.png)
+
+### 🕵️ Blackbox Targets in Grafana
+![Blackbox in Grafana](./screenshots/blackbox-in-grafana.png)
+
+### ⚙️ Blackbox Exporter
+![Blackbox Exporter](./screenshots/blackbox-exporter.png)
+
+
+
+
    
 
 
