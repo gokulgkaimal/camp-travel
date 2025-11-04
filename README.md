@@ -90,13 +90,13 @@ EC2 Tools Instance (m7i-flex.large Instance) for Jenkins, SonarQube, Trivy, Prom
 ![Docker Tools](./screenshots/docker-tools.png)
 
 ### 💻 EC2 (camp-travel-tools-instance)
-![EC2 Instance](./screenshots/ec2-camp-travel-instance.png)
+![EC2 Instance](./screenshots/EC2-camp-travel-instance.png)
 
 ### 🧱 EKS Node Group
 ![EKS Node Group](./screenshots/eks-node-group.png)
 
 ### 🪣 AWS ECR Repositories & IAM Roles
-![AWS ECR Roles](./screenshots/aws-ecr-roles.png)
+![AWS ECR Roles](./screenshots/aws-ECR-roles.png)
 
 
 2️⃣ Jenkins CI/CD Pipeline Setup
