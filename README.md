@@ -80,4 +80,10 @@ ECR Repositories: camp-travel-frontend, camp-travel-backend
 
 EC2 Tools Instance (m7i-flex.large Instance) for Jenkins, SonarQube, Trivy, Prometheus, Grafana
 
+### 🧩 Terraform Apply Output
+![Terraform Outputs](./screenshots/terraform-outputs.png)
+
+### ☁️ AWS EKS Cluster (camp-travel-eks)
+![AWS EKS Cluster](./screenshots/aws-eks-cluster-camp-travel.png)
+
 
