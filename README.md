@@ -86,4 +86,50 @@ EC2 Tools Instance (m7i-flex.large Instance) for Jenkins, SonarQube, Trivy, Prom
 ### ☁️ AWS EKS Cluster (camp-travel-eks)
 ![AWS EKS Cluster](./screenshots/aws-eks-cluster-camp-travel.png)
 
+### 🐳 Docker Tools Setup
+![Docker Tools](./screenshots/docker-tools.png)
+
+### 💻 EC2 (camp-travel-tools-instance)
+![EC2 Instance](./screenshots/ec2-camp-travel-instance.png)
+
+### 🧱 EKS Node Group
+![EKS Node Group](./screenshots/eks-node-group.png)
+
+### 🪣 AWS ECR Repositories & IAM Roles
+![AWS ECR Roles](./screenshots/aws-ecr-roles.png)
+
+
+2️⃣ Jenkins CI/CD Pipeline Setup
+Installed Tools on EC2
+
+Docker
+
+Jenkins
+
+Trivy
+
+kubectl
+
+aws-cli
+
+Configured Plugins
+
+✅ Docker
+✅ Pipeline
+✅ SonarQube Scanner
+✅ Kubernetes CLI
+✅ Prometheus Metrics
+
+Pipeline Stages
+Stage	Description
+1. Checkout	Pulls code from GitHub
+2. Build/Test	React build & Flask unit tests
+3. SonarQube Analysis	Static code quality check
+4. Trivy Scan	Security vulnerability scan
+5. Docker Build & Push	Builds & tags images → pushes to ECR
+6. Deploy to EKS	kubectl apply for manifests
+7. Smoke Test	Validates app health via Ingress URL
+
+   
+
 
