@@ -95,8 +95,11 @@ EC2 Tools Instance (m7i-flex.large Instance) for Jenkins, SonarQube, Trivy, Prom
 ### 🧱 EKS Node Group
 ![EKS Node Group](./screenshots/eks-node-group.png)
 
-### 🪣 AWS ECR Repositories & IAM Roles
+### 🪣 AWS ECR Repositories 
 ![AWS ECR Roles](./screenshots/aws-ECR-roles.png)
+
+### ⚙️ Kubernetes Service (camp-travel)
+![Kubernetes Service](./screenshots/kubernetes-svc.png)
 
 
 2️⃣ Jenkins CI/CD Pipeline Setup
@@ -129,6 +132,12 @@ Stage	Description
 5. Docker Build & Push	Builds & tags images → pushes to ECR
 6. Deploy to EKS	kubectl apply for manifests
 7. Smoke Test	Validates app health via Ingress URL
+
+   ### 🧩 SonarQube Analysis
+![SonarQube Analysis](./screenshots/sonarqube-analysis.png)
+
+### 🚀 Jenkins Stages
+![Jenkins Stages](./screenshots/jenkins-stages.png)
 
    
 
