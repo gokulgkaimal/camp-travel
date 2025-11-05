@@ -165,6 +165,43 @@ Blackbox Exporter (7587)
 ![Blackbox Exporter](./screenshots/blackbox-exporter.png)
 
 
+🧩 **Final Architecture**
+Terraform (Infrastructure as Code)-->Developer → GitHub → Jenkins → SonarQube → Trivy → AWS ECR → EKS → Travel App → Prometheus → Grafana 
+
+### 🧱 Jenkins Pipeline Overview
+![Jenkins Pipeline Overview](./screenshots/jenkins-pipeline-overview.png)
+
+
+**Final Outcome**
+
+✔️ Fully automated CI/CD pipeline with quality & security checks
+✔️ Zero manual deployments — fully managed through Jenkins
+✔️ Flask + React app deployed on AWS EKS
+✔️ Live metrics and uptime monitoring via Grafana
+✔️ End-to-end setup completed individually by a DevOps Engineer
+
+## 🏕️ Camp-Travel Homepage
+![Camp Travel Homepage](./screenshots/camp-travel-homepage.png)
+
+**Learnings**
+
+Mastered AWS infrastructure automation using Terraform
+
+Integrated code quality and vulnerability scans into CI/CD
+
+Automated multi-service deployment to Kubernetes
+
+Implemented continuous monitoring with Prometheus and Grafana
+
+Built and deployed a full-stack application independently end-to-end
+
+**👨‍💻 Author**
+
+Gokul G Kaimal — DevOps Engineer
+
+Built, automated, and deployed this full-scale Travel Application independently.
+
+
 
 
    
